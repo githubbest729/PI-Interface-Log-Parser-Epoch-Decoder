@@ -6,6 +6,6 @@ export default defineConfig({
   // >>> SET THIS TO YOUR GITHUB REPOSITORY NAME, with leading and trailing slash. <
   // Example: repo "pi-log-parser" -> base: '/pi-log-parser/'
   // Use '/' only for a custom domain or a <username>.github.io user site.
-  base: '/YOUR_REPO_NAME/',
+  base: '/githubbest729/',
   plugins: [react(), tailwindcss()],
 })
