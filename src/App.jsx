@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState, useDeferredValue } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState, useDeferredValue } from 'react'
 import {
   AlertOctagon,
   AlertTriangle,
   Bug,
   Check,
+  ChevronDown,
   Clock,
+  Copy,
   FileText,
   Info,
   Share2,
@@ -15,7 +17,7 @@ import {
 import { PI_ERRORS, normalizeCode } from './piErrors'
 
 /* ------------------------------------------------------------------ */
-/* Parsing                                                             */
+/* Parsing (unchanged)                                                 */
 /* ------------------------------------------------------------------ */
 
 const PAGE = 1500
@@ -153,6 +155,20 @@ function parseLog(text) {
   }
 }
 
+/* Text placed on the clipboard by the per-line Copy button */
+function buildCopyText(line, utc) {
+  const out = [line.raw]
+  for (const t of line.tokens) {
+    if (t.type === 'epoch') {
+      out.push(`Timestamp ${line.raw.slice(t.start, t.end)} = ${formatMs(t.ms, utc, t.hasMs)}`)
+    }
+  }
+  for (const { info } of line.issues) {
+    out.push(`${info.label}: ${info.title}. ${info.meaning} Fix: ${info.fix}`)
+  }
+  return out.join('\n')
+}
+
 /* ------------------------------------------------------------------ */
 /* UI bits                                                             */
 /* ------------------------------------------------------------------ */
@@ -186,7 +202,7 @@ const SAMPLE = [
   '25-Jan-26 08:19:00 opcint1> Scan class 1 completed, 0 errors',
 ].join('\n')
 
-function LogRow({ line, utc }) {
+const LogRow = memo(function LogRow({ line, utc, copied, onCopy }) {
   const s = LEVEL_STYLE[line.level]
   const parts = []
   let pos = 0
@@ -198,7 +214,7 @@ function LogRow({ line, utc }) {
       parts.push(
         <span key={i}>
           <span className="text-sky-300">{text}</span>
-          <span className="ml-1 rounded bg-sky-500/10 px-1.5 text-sky-300 ring-1 ring-sky-500/30">
+          <span className="ml-1 rounded bg-sky-500/10 px-1 text-sky-300 ring-1 ring-sky-500/30">
             → {formatMs(t.ms, utc, t.hasMs)}
           </span>
         </span>,
@@ -215,27 +231,37 @@ function LogRow({ line, utc }) {
   if (pos < line.raw.length) parts.push(line.raw.slice(pos))
 
   return (
-    <div className={`border-l-4 px-3 py-1 ${s.row}`}>
-      <div className="flex gap-3 font-mono text-[13px] leading-6">
-        <span className="w-12 shrink-0 select-none text-right text-slate-600">{line.n}</span>
-        <span className={`w-8 shrink-0 select-none font-semibold ${s.tag}`}>{s.label}</span>
+    <div className={`border-l-[3px] px-2 py-px ${s.row}`}>
+      <div className="flex gap-2 font-mono text-xs leading-5">
+        <span className="w-10 shrink-0 select-none text-right text-slate-600">{line.n}</span>
+        <span className={`w-7 shrink-0 select-none font-semibold ${s.tag}`}>{s.label}</span>
         <span className="min-w-0 flex-1 whitespace-pre-wrap break-all">{parts}</span>
+        <button
+          onClick={() => onCopy(line)}
+          title="Copy this line with its explanation and fix"
+          aria-label={`Copy line ${line.n}`}
+          className="mt-0.5 h-4 w-4 shrink-0 text-slate-600 hover:text-sky-300 focus:outline-none focus-visible:text-sky-300"
+        >
+          {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+        </button>
       </div>
       {line.issues.map(({ key, info }) => (
         <div
           key={key}
-          className="ml-[5.75rem] mt-1 mb-1 flex gap-2 rounded-md border border-red-900/60 bg-red-950/50 px-2.5 py-1.5 text-xs text-red-200"
+          className="my-0.5 ml-[5.25rem] flex gap-1.5 rounded border border-red-900/60 bg-red-950/50 px-2 py-0.5 text-[11px] leading-4 text-red-200"
         >
-          <AlertOctagon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-400" />
+          <AlertOctagon className="mt-px h-3 w-3 shrink-0 text-red-400" />
           <span>
-            <b className="text-red-100">{info.label}: {info.title}.</b> {info.meaning}{' '}
-            <span className="text-red-300/80">Fix: {info.fix}</span>
+            <b className="text-red-100">
+              {info.label}: {info.title}.
+            </b>{' '}
+            {info.meaning} <span className="text-red-300/80">Fix: {info.fix}</span>
           </span>
         </div>
       ))}
     </div>
   )
-}
+})
 
 /* ------------------------------------------------------------------ */
 /* App                                                                 */
@@ -248,6 +274,8 @@ export default function App() {
   const [limit, setLimit] = useState(PAGE)
   const [epochInput, setEpochInput] = useState('')
   const [toast, setToast] = useState('')
+  const [summaryOpen, setSummaryOpen] = useState(true)
+  const [copiedLine, setCopiedLine] = useState(null)
 
   const deferred = useDeferredValue(text)
   const parsed = useMemo(() => parseLog(deferred), [deferred])
@@ -262,6 +290,8 @@ export default function App() {
     [parsed, filter],
   )
 
+  const totalIssues = useMemo(() => parsed.summary.reduce((a, s) => a + s.count, 0), [parsed])
+
   useEffect(() => {
     setLimit(PAGE)
   }, [deferred, filter])
@@ -272,12 +302,30 @@ export default function App() {
     return () => clearTimeout(id)
   }, [toast])
 
+  useEffect(() => {
+    if (copiedLine === null) return undefined
+    const id = setTimeout(() => setCopiedLine(null), 1500)
+    return () => clearTimeout(id)
+  }, [copiedLine])
+
   const quick = useMemo(() => {
     const m = epochInput.trim().match(/^(\d{10}|\d{13})(?:\.(\d{1,9}))?$/)
     return m ? decodeEpoch(m[1], m[2]) : null
   }, [epochInput])
 
   const tzName = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+  const handleCopy = useCallback(
+    async (line) => {
+      try {
+        await navigator.clipboard.writeText(buildCopyText(line, utc))
+        setCopiedLine(line.n)
+      } catch {
+        setToast('Copy failed. Select the text manually.')
+      }
+    },
+    [utc],
+  )
 
   async function handleShare() {
     const url = window.location.origin + window.location.pathname
@@ -299,21 +347,23 @@ export default function App() {
   }
 
   const btn =
-    'rounded-md border px-3 py-1.5 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500'
+    'rounded-md border px-2.5 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500'
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200">
-      <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/90 backdrop-blur">
-        <div className="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 py-3">
+    // Desktop (lg+): the page itself never scrolls; each pane scrolls internally.
+    // Narrow screens: normal page scroll with fixed-height panes.
+    <div className="flex min-h-dvh flex-col bg-slate-950 text-slate-200 lg:h-dvh lg:overflow-hidden">
+      <header className="shrink-0 border-b border-slate-800 bg-slate-950">
+        <div className="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-2 px-4 py-2">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-sky-500/10 p-2 ring-1 ring-sky-500/30">
+            <div className="rounded-lg bg-sky-500/10 p-1.5 ring-1 ring-sky-500/30">
               <Terminal className="h-5 w-5 text-sky-400" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold leading-tight text-slate-100">
+              <h1 className="text-base font-semibold leading-tight text-slate-100">
                 PI Interface Log Parser &amp; Epoch Decoder
               </h1>
-              <p className="text-xs text-slate-400">pipc.log and OPC interface troubleshooting</p>
+              <p className="text-[11px] leading-tight text-slate-400">pipc.log and OPC interface troubleshooting</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -330,11 +380,14 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-[1800px] gap-4 p-4 lg:grid-cols-2">
-        {/* LEFT: input, epoch decoder, issue summary */}
-        <div className="flex min-w-0 flex-col gap-4">
-          <section aria-labelledby="input-h" className="rounded-xl border border-slate-800 bg-slate-900/60">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-2.5">
+      <main className="mx-auto grid w-full max-w-[1800px] flex-1 gap-3 p-3 lg:min-h-0 lg:grid-cols-2 lg:overflow-hidden">
+        {/* LEFT: raw input (fills the column and scrolls internally) + epoch decoder */}
+        <div className="flex min-w-0 flex-col gap-3 lg:min-h-0">
+          <section
+            aria-labelledby="input-h"
+            className="flex min-h-[16rem] flex-col rounded-xl border border-slate-800 bg-slate-900/60 lg:min-h-0 lg:flex-1"
+          >
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-3 py-2">
               <h2 id="input-h" className="flex items-center gap-2 text-sm font-semibold text-slate-100">
                 <FileText className="h-4 w-4 text-sky-400" /> Raw log input
               </h2>
@@ -358,14 +411,20 @@ export default function App() {
               onChange={(e) => setText(e.target.value)}
               wrap="off"
               spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="off"
+              autoComplete="off"
               aria-label="Paste pipc.log or OPC interface log text"
               placeholder="Paste pipc.log or OPC interface log text here..."
-              className="h-[40vh] w-full resize-y overflow-auto rounded-b-xl bg-transparent p-4 font-mono text-[13px] leading-6 text-slate-200 placeholder:text-slate-600 focus:outline-none"
+              className="min-h-0 w-full flex-1 resize-none overflow-auto rounded-b-xl bg-transparent p-3 font-mono text-xs leading-5 text-slate-200 placeholder:text-slate-600 focus:outline-none"
             />
           </section>
 
-          <section aria-labelledby="epoch-h" className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-            <h2 id="epoch-h" className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-100">
+          <section
+            aria-labelledby="epoch-h"
+            className="shrink-0 rounded-xl border border-slate-800 bg-slate-900/60 p-3"
+          >
+            <h2 id="epoch-h" className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-100">
               <Clock className="h-4 w-4 text-sky-400" /> Epoch decoder
             </h2>
             <div className="flex gap-2">
@@ -373,9 +432,11 @@ export default function App() {
                 value={epochInput}
                 onChange={(e) => setEpochInput(e.target.value)}
                 inputMode="decimal"
+                spellCheck={false}
+                autoComplete="off"
                 placeholder="1769329005 or 1769329005123"
                 aria-label="Unix epoch timestamp in seconds or milliseconds"
-                className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-slate-200 placeholder:text-slate-600 focus:border-sky-500 focus:outline-none"
+                className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-950 px-3 py-1.5 font-mono text-sm text-slate-200 placeholder:text-slate-600 focus:border-sky-500 focus:outline-none"
               />
               <button
                 onClick={() => setEpochInput(String(Math.floor(Date.now() / 1000)))}
@@ -385,7 +446,7 @@ export default function App() {
               </button>
             </div>
             {epochInput.trim() && (
-              <div className="mt-3 space-y-1 font-mono text-sm">
+              <div className="mt-2 space-y-0.5 font-mono text-xs">
                 {quick ? (
                   <>
                     <div>
@@ -398,51 +459,21 @@ export default function App() {
                     </div>
                   </>
                 ) : (
-                  <div className="text-amber-400">Enter a 10-digit (seconds) or 13-digit (ms) epoch between 2000 and 2100.</div>
+                  <div className="text-amber-400">
+                    Enter a 10-digit (seconds) or 13-digit (ms) epoch between 2000 and 2100.
+                  </div>
                 )}
               </div>
             )}
           </section>
-
-          <section
-            aria-labelledby="issues-h"
-            className="rounded-xl border border-slate-800 bg-slate-900/60 p-4"
-          >
-            <h2 id="issues-h" className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-100">
-              <AlertOctagon className="h-4 w-4 text-red-400" /> Detected error codes
-            </h2>
-            {parsed.summary.length === 0 ? (
-              <p className="text-sm text-slate-500">No known PI, OPC/COM or Winsock error codes found yet.</p>
-            ) : (
-              <ul className="space-y-2">
-                {parsed.summary.map(({ key, info, count, firstLine }) => (
-                  <li key={key} className="rounded-lg border border-red-900/50 bg-red-950/20 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <code className="rounded bg-red-500/20 px-1.5 py-0.5 text-sm font-semibold text-red-300">
-                          {info.label}
-                        </code>{' '}
-                        <span className="text-sm font-medium text-slate-100">{info.title}</span>
-                      </div>
-                      <span className="shrink-0 text-xs text-slate-400">
-                        {count}x, first at line {firstLine}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-sm text-slate-300">{info.meaning}</p>
-                    <p className="mt-1 text-sm text-red-300/90">Fix: {info.fix}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
         </div>
 
-        {/* RIGHT: parsed output */}
+        {/* RIGHT: filters, summary, parsed log (log lines scroll internally) */}
         <section
           aria-labelledby="out-h"
-          className="flex min-h-[60vh] min-w-0 flex-col rounded-xl border border-slate-800 bg-slate-900/60"
+          className="flex min-h-[70vh] min-w-0 flex-col rounded-xl border border-slate-800 bg-slate-900/60 lg:min-h-0 lg:overflow-hidden"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-2.5">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-3 py-2">
             <h2 id="out-h" className="text-sm font-semibold text-slate-100">
               Parsed log
             </h2>
@@ -474,7 +505,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-x-4 gap-y-1 border-b border-slate-800 px-4 py-2 text-xs text-slate-400">
+          <div className="flex shrink-0 flex-wrap gap-x-4 gap-y-0.5 border-b border-slate-800 px-3 py-1.5 text-xs text-slate-400">
             <span className="text-red-400">{parsed.counts.error} errors</span>
             <span className="text-amber-400">{parsed.counts.warning} warnings</span>
             <span className="text-sky-400">{parsed.counts.info} info</span>
@@ -482,7 +513,54 @@ export default function App() {
             <span>{parsed.epochs} timestamps decoded</span>
           </div>
 
-          <div className="max-h-[80vh] flex-1 overflow-auto py-2">
+          {/* Executive summary of detected error codes */}
+          <div className="shrink-0 border-b border-slate-800">
+            <button
+              onClick={() => setSummaryOpen((v) => !v)}
+              aria-expanded={summaryOpen}
+              className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs font-semibold text-slate-200 hover:bg-slate-800/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500"
+            >
+              <span className="flex items-center gap-2">
+                <AlertOctagon className="h-3.5 w-3.5 text-red-400" />
+                Detected error codes
+                <span className="rounded bg-slate-800 px-1.5 font-normal text-slate-400">
+                  {parsed.summary.length} unique, {totalIssues} total
+                </span>
+              </span>
+              <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition ${summaryOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {summaryOpen && (
+              <div className="max-h-36 overflow-y-auto px-3 pb-2">
+                {parsed.summary.length === 0 ? (
+                  <p className="text-xs text-slate-500">No known PI, OPC/COM or Winsock error codes found yet.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {parsed.summary.map(({ key, info, count, firstLine }) => (
+                      <li key={key}>
+                        <details className="rounded-md border border-red-900/50 bg-red-950/20">
+                          <summary className="flex cursor-pointer list-none items-center gap-2 px-2 py-1 text-xs [&::-webkit-details-marker]:hidden">
+                            <code className="rounded bg-red-500/20 px-1.5 font-semibold text-red-300">
+                              {info.label}
+                            </code>
+                            <span className="min-w-0 flex-1 truncate text-slate-200">{info.title}</span>
+                            <span className="shrink-0 text-slate-400">
+                              {count}x · line {firstLine}
+                            </span>
+                          </summary>
+                          <div className="px-2 pb-1.5 text-xs leading-4 text-slate-300">
+                            {info.meaning} <span className="text-red-300/90">Fix: {info.fix}</span>
+                          </div>
+                        </details>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Log lines: the only part of this pane that scrolls */}
+          <div className="max-h-[70vh] min-h-0 flex-1 overflow-y-auto py-1 lg:max-h-none">
             {parsed.lines.length === 0 ? (
               <p className="p-6 text-sm text-slate-500">Paste a log on the left, or click Load sample.</p>
             ) : visible.length === 0 ? (
@@ -490,10 +568,10 @@ export default function App() {
             ) : (
               <>
                 {visible.slice(0, limit).map((l) => (
-                  <LogRow key={l.n} line={l} utc={utc} />
+                  <LogRow key={l.n} line={l} utc={utc} copied={copiedLine === l.n} onCopy={handleCopy} />
                 ))}
                 {visible.length > limit && (
-                  <div className="p-4 text-center">
+                  <div className="p-3 text-center">
                     <button
                       onClick={() => setLimit((v) => v + PAGE)}
                       className={`${btn} border-slate-700 text-slate-300 hover:bg-slate-800`}
@@ -508,30 +586,34 @@ export default function App() {
         </section>
       </main>
 
-      <section aria-labelledby="about-h" className="mx-auto max-w-4xl px-4 pb-10 pt-4 text-sm leading-relaxed text-slate-400">
-        <h2 id="about-h" className="mb-2 text-base font-semibold text-slate-200">
-          What this PI log parser does
-        </h2>
-        <p className="mb-4">
-          Paste text from pipc.log or an OPC interface log and the tool classifies every line as error, warning, info
-          or debug, highlights known OSIsoft/AVEVA PI, OPC/COM and Winsock error codes, and explains each in plain
-          English with a suggested fix. Unix epoch values in seconds or milliseconds are converted to your local time
-          zone or UTC.
-        </p>
-        <h3 className="mb-1 font-medium text-slate-300">Is my log data uploaded anywhere?</h3>
-        <p className="mb-4">
-          No. All parsing runs in your browser with regular expressions and React state. After the first load the app
-          is cached and works without a network connection, which suits air-gapped plant networks.
-        </p>
-        <h3 className="mb-1 font-medium text-slate-300">Which timestamps are detected?</h3>
-        <p>
-          10-digit Unix seconds and 13-digit Unix milliseconds between the years 2000 and 2100, with optional
-          fractional seconds.
-        </p>
-      </section>
-
-      <footer className="border-t border-slate-800 px-4 py-4 text-center text-xs text-slate-600">
-        PI Interface Log Parser &amp; Epoch Decoder. Client-side only.
+      {/* Collapsed by default. Content stays in the page for search engines. */}
+      <footer className="shrink-0 border-t border-slate-800 bg-slate-950">
+        <details className="group mx-auto max-w-[1800px] px-4 py-1.5">
+          <summary className="flex cursor-pointer list-none select-none items-center gap-2 text-xs text-slate-500 hover:text-slate-300 [&::-webkit-details-marker]:hidden">
+            <Info className="h-3.5 w-3.5" />
+            About this tool
+            <ChevronDown className="h-3.5 w-3.5 transition group-open:rotate-180" />
+          </summary>
+          <div className="max-h-[35vh] max-w-4xl overflow-y-auto py-3 text-sm leading-relaxed text-slate-400">
+            <h2 className="mb-2 text-base font-semibold text-slate-200">What this PI log parser does</h2>
+            <p className="mb-4">
+              Paste text from pipc.log or an OPC interface log and the tool classifies every line as error, warning,
+              info or debug, highlights known OSIsoft/AVEVA PI, OPC/COM and Winsock error codes, and explains each in
+              plain English with a suggested fix. Unix epoch values in seconds or milliseconds are converted to your
+              local time zone or UTC.
+            </p>
+            <h3 className="mb-1 font-medium text-slate-300">Is my log data uploaded anywhere?</h3>
+            <p className="mb-4">
+              No. All parsing runs in your browser with regular expressions and React state. After the first load the
+              app is cached and works without a network connection, which suits air-gapped plant networks.
+            </p>
+            <h3 className="mb-1 font-medium text-slate-300">Which timestamps are detected?</h3>
+            <p>
+              10-digit Unix seconds and 13-digit Unix milliseconds between the years 2000 and 2100, with optional
+              fractional seconds.
+            </p>
+          </div>
+        </details>
       </footer>
 
       {toast && (
