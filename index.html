@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <title>PI Interface Log Parser &amp; Epoch Decoder | Offline PI/OPC Log Tool</title>
+    <meta
+      name="description"
+      content="Free offline PI Interface log parser for SCADA engineers. Decode pipc.log and OPC interface errors, translate OSIsoft/AVEVA PI error codes like -10722 and -10401, and convert epoch timestamps. No server, no uploads."
+    />
+    <meta
+      name="keywords"
+      content="PI interface log parser, pipc.log, OSIsoft PI error codes, AVEVA PI System, OPC interface troubleshooting, epoch timestamp converter, SCADA log analyzer, PINET timeout -10722, -10401 no read access"
+    />
+    <meta name="author" content="ChrisTechVA" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0f172a" />
+
+    <!-- >>> REPLACE https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME/ EVERYWHERE BELOW <<< -->
+    <link rel="canonical" href="https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME/" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="PI Log Parser" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- Open Graph (Facebook, WhatsApp, Messenger, LinkedIn) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PI Interface Log Parser" />
+    <meta property="og:title" content="PI Interface Log Parser &amp; Epoch Decoder" />
+    <meta
+      property="og:description"
+      content="Paste a pipc.log or OPC interface log. Instantly decode PI error codes, convert epoch timestamps, and filter to errors and warnings. Works offline."
+    />
+    <meta property="og:url" content="https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME/" />
+    <meta property="og:image" content="https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="PI Interface Log Parser showing highlighted PI error codes and decoded timestamps" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PI Interface Log Parser &amp; Epoch Decoder" />
+    <meta
+      name="twitter:description"
+      content="Offline PI/OPC interface log parser: PI error code translation, epoch decoding, error/warning filtering."
+    />
+    <meta name="twitter:image" content="https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME/og-image.png" />
+    <meta name="twitter:image:alt" content="PI Interface Log Parser interface preview" />
+
+    <!-- JSON-LD structured data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": ["WebApplication", "SoftwareApplication"],
+        "name": "PI Interface Log Parser & Epoch Decoder",
+        "alternateName": ["PI Log Parser", "pipc.log Analyzer", "OSIsoft PI Error Code Decoder"],
+        "url": "https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME/",
+        "description": "Offline, browser-only tool for SCADA engineers to parse AVEVA/OSIsoft PI interface logs (pipc.log, OPC interfaces), translate PI error codes into plain English, decode Unix epoch timestamps, and filter logs to errors and warnings.",
+        "applicationCategory": "DeveloperApplication",
+        "applicationSubCategory": "Industrial Automation / SCADA Troubleshooting",
+        "operatingSystem": "Any (modern web browser)",
+        "browserRequirements": "Requires JavaScript. Works offline after first load.",
+        "softwareVersion": "1.0.0",
+        "inLanguage": "en",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": [
+          "Paste and parse large pipc.log and OPC interface logs client-side",
+          "Instant translation of OSIsoft/AVEVA PI, OPC/COM and Winsock error codes",
+          "Automatic Unix epoch (seconds and milliseconds) to local time conversion",
+          "One-click filtering to errors and warnings only",
+          "Installable PWA that runs fully offline in air-gapped plant networks"
+        ],
+        "keywords": "PI interface log parser, pipc.log, OSIsoft PI, AVEVA, OPC, SCADA, epoch converter, PI error codes",
+        "audience": {
+          "@type": "Audience",
+          "audienceType": "SCADA engineers, PI System administrators, industrial automation engineers"
+        },
+        "author": { "@type": "Organization", "name": "ChrisTechVA", "url": "https://christechva.netlify.app" },
+        "screenshot": "https://YOUR_GITHUB_USERNAME.github.io/YOUR_REPO_NAME/og-image.png"
+      }
+    </script>
+  </head>
+
+  <body>
+    <div id="root">
+      <!-- Static fallback content for crawlers and pre-JS paint. React replaces it on mount. -->
+      <main style="font-family: system-ui, sans-serif; padding: 2rem; color: #e2e8f0">
+        <h1>PI Interface Log Parser &amp; Epoch Decoder</h1>
+        <p>
+          Offline tool for SCADA engineers: parse pipc.log and OPC interface logs, translate OSIsoft/AVEVA PI error
+          codes, and convert Unix epoch timestamps to local time.
+        </p>
+      </main>
+    </div>
+    <noscript>This tool needs JavaScript enabled. It runs entirely in your browser and never contacts a server.</noscript>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
